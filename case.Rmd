@@ -1,0 +1,101 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+```{r}
+df <- read.csv("C:/Users/Chris Huen/Downloads/NewData.csv")
+
+```
+```{r}
+dt <- df
+```
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+```{r}
+library(dplyr)
+library(tidyverse)
+library(gam)
+```
+```{r}
+df$Disc = case_when(is.na(df$Disc)& !is.na(df$Title) ~ "Adult", df$Disc == "Senior" ~ "Senior", df$Disc == "Student"~"Student")
+df$Disc <- as.factor(df$Disc)
+df$Title <- as.factor(df$Title)
+table(df$Disc)
+df$SUBSCRIBE = case_when(df$SUBSCRIBE == "N" ~ 0, df$SUBSCRIBE == "Y" ~ 1) 
+
+```
+```{r}
+head(df,20)
+```
+```{r}
+train <- filter(df, Sample == "Estimation")
+validation <- filter(df, Sample == "Validation")
+test <- filter(df, Sample == "Holdout")
+train <- train%>%
+        select(-Record,-custid,-Title, -Sample,  -LastOrder, -Weeks3Meals, -TotPurch)
+validation <- validation%>%
+        select(-Record,-custid,-Title, -Sample, -LastOrder,-Weeks3Meals,-TotPurch)
+test <- test%>%
+        select(-Title, -Sample, -LastOrder,-Weeks3Meals,-TotPurch)
+```
+```{r}
+library(gam)
+
+fit <- gam(SUBSCRIBE~DA_Income+DA_Under20+DA_Over60+DA_Single+NumDeliv+MealsPerDeliv+Veggie,family=binomial,data= train)
+pp <- (predict(fit,newdata=validation,type="response")>0.5)
+tt <- table(pp,validation$SUBSCRIBE)
+sum(tt[row(tt) != col(tt)])/sum(tt)
+
+```
+```{r}
+summary(fit)
+```
+```{R}
+dim(test)
+```
+
+```{R}
+head(test)
+test$SUBSCRIBE <- predict(fit,newdata=test, type = "response")
+```
+
+```{r}
+write.csv(test, "C:/Users/Chris Huen/Desktop/ten.csv")
+```
+```{R}
+head(train)
+dim(train)
+```
+```{r}
+library(gbm)
+set.seed(1)
+hboost<-gbm(SUBSCRIBE ~ ., data=train,
+            n.trees=500,distribution="bernoulli")
+pp <- (predict(hboost,newdata=validation,n.trees=500,
+                     type="response") >0.5)
+tt<-table(pp,validation$SUBSCRIBE)
+sum(tt[row(tt) != col(tt)])/sum(tt)
+```
+```{r}
+plot(hboost,i="Healthy") 
+plot(hboost, i="DA_Under20")
+```
+```{r}
+summary(hboost)
+```
+```{r}
+test$SUBSCRIBE <- predict(hboost,newdata=test, type = "response",n.trees=hboost$n.trees)
+```
+```{r}
+pairs(df)
+```
+```{r}
+write.csv(test, "C:/Users/Chris Huen/Desktop/ten.csv")
+```
